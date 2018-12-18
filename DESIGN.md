@@ -22,7 +22,7 @@ By making a few simplifying assumptions, we can obviate the need for most of the
 
 - **Specific needs.** Web developers have different needs for their projects. Mostly, those needs are actually pretty minimal, because **the hard part of web development is capturing and fulfilling specific business and usability requirements** (i.e. engineering).
 
-## Why does tool exist?
+## Why does this tool exist?
 
 - There are a number of good existing standalone tools that provide 95% of the functionality needed to build modern single 
 - These tools are not linked together and easy to use.
@@ -53,20 +53,25 @@ Creates a default set of HTML, CSS, JS, and config files.
 ```html
 <html>
     <body>
-        @@import button-template
+        @@import(@@components/button-template)
     </body>
 </html>
 ```
 ```html
 <html>
     <body>
-        @@import-all ./components
+        @@import-all(@@components)
     </body>
 </html>
 ```
 
 ### JS Optimization
-
+```
+js = {
+    # Invoke the remote closure compiler API.
+    @@cc-api(@@js_dir)
+}
+```
 ### CSS Preprocessing
 ```
 css = {
@@ -79,7 +84,9 @@ It's just a thin layer over the shell!
 ```
 input_dir = .
 output_dir = ./build
-css_dir = ./css
+css_dir = @@input_dir/css
+js_dir = @@input_dir/js
+components = @@input_dir/components
 
 run = {
     @@html
