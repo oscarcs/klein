@@ -80,7 +80,8 @@ version = '0.0.1'
 copy(src, dest)
 shell('ls ' + src)
 
-# This is a custom method.
+# This is a custom method. 
+# This can be called as a task from the command line.
 doWork(x, y) {
     copy(x + '/src', y)
 }
