@@ -1,21 +1,14 @@
 import 'dart:io';
-
-const MIN_ARGS = 1;
-const MAX_ARGS = 1;
+import 'src/config_parser.dart';
 
 main(List<String> args) {
-    if (args.length < MIN_ARGS || args.length > MAX_ARGS) {
-        print('Wrong number of arguments.');
-        return;
-    }
-
     String inputFileName;
-    for (int i = 0; i < args.length; i++) {
-        if (inputFileName == null && !args[i].startsWith('-')) {
-            inputFileName = args[i];
+    for (var arg in args) {
+        if (inputFileName == null && !isOption(arg)) {
+            inputFileName = arg;
         }
-        else if (args[i].startsWith('-')) {
-            if (args[i].toLowerCase() == '-h' || args[i].toLowerCase() == '--help') {
+        else if (isOption(arg)) {
+            if (arg.toLowerCase() == '-h' || arg.toLowerCase() == '--help') {
                 printHelp();
             }
             return;
@@ -26,7 +19,14 @@ main(List<String> args) {
         inputFile
             .readAsString()
             .then((String f) {
-                print(f);
+                try {
+                    var parser = new ConfigParser(f);
+                    var config = parser.parse();
+                }
+                catch (e, s) {
+                    print(e);
+                    print(s);
+                }
             })
             .catchError((e) {
                 error('Could not read input file \'$inputFileName\'.');
@@ -35,6 +35,10 @@ main(List<String> args) {
     else {
         error('Please provide an input configuration file.');
     }
+}
+
+bool isOption(String arg) {
+  return arg.startsWith('-');
 }
 
 void error(String msg) {
