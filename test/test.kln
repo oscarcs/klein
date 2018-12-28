@@ -4,7 +4,7 @@
 def src = '.'
 def dest = src + '/build'
 
-# This is a builtin.
+# 'version' is a builtin.
 version = '0.0.1'
 
 # This is a (builtin) method call.

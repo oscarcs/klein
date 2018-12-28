@@ -66,14 +66,14 @@ Creates a default set of HTML, CSS, JS, and config files.
 ```
 
 ### Build language
-```
+```ini
 # This is a comment.
 
 # This is a local variable.
 def src = '.'
 def dest = src + '/build'
 
-# This is a builtin.
+# 'version' is a builtin.
 version = '0.0.1'
 
 # This is a (builtin) method call.

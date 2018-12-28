@@ -37,9 +37,12 @@ class ConfigParser {
     String file = null;
 
     List<Token> tokens = null;
-    num pos = -1;
-    String get token {
-        
+    num index = 0;
+    Token get token {
+        if (tokens != null && index < tokens.length) {
+            return tokens[index];
+        }
+        return null;
     }
 
     ConfigParser(String file) {
@@ -133,21 +136,171 @@ class ConfigParser {
             }
         }
 
-        tokens.forEach((t) => print(t.type));
+        // @@HACK: add an extra terminating newline.
+        tokens.add(new Token(TokenType.Newline, '\n'));
         this.tokens = tokens;
+    }
+
+    void advance() {
+        index++;
     }
 
     Config parse() {
         tokenize();
-        var config = new Config();
+        var root = new ConfigNode(ConfigNodeType.Program, []);
+        var config = new Config(root);
+        
+        List<ConfigNode> statements = [];
+       
+        whitespace();
+        while (token != null) {
+            statements.add(statement());
+        }
+        whitespace();
+        
+        root.children.addAll(statements);
         return config;
     }
 
-    bool accept(TokenType type) {
-        
+    void whitespace() {
+        while (accept(TokenType.Newline)) { }
     }
 
-    bool expect(TokenType token) {
+    ConfigNode statement() {
+        var ident = token;
+        ConfigNode node = null;
 
+        // Local variable
+        if (accept(TokenType.Def)) {
+            ident = token;
+            ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
+            lhs.data = ident.reproduction;
+
+            expect(TokenType.Ident);
+            expect(TokenType.Equals);
+            ConfigNode rhs = expression();
+            node = ConfigNode(ConfigNodeType.Def, [lhs, rhs]);
+        }
+        // Builtin, redefinition, or function
+        else if (accept(TokenType.Ident)) {
+            if (accept(TokenType.Equals)) {
+                ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
+                lhs.data = ident.reproduction;
+
+                ConfigNode rhs = expression();
+                node = ConfigNode(ConfigNodeType.Assignment, [lhs, rhs]);
+            }
+            else {
+                ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
+                lhs.data = ident.reproduction;
+                node = func();
+                node.children.insert(0, lhs);
+            }
+        }
+        else {
+            throw "Error: Expected a statement, got ${token.type} instead.";
+        }
+        expect(TokenType.Newline);
+        return node;
+    }
+
+    ConfigNode expression() {
+        ConfigNode root;
+        ConfigNodeType type;
+
+        for (int i = 0; i < 10000; i++) {
+            Token value = token;
+        
+            if (accept(TokenType.Ident)) {
+                type = ConfigNodeType.Ident;                
+            }
+            else if (accept(TokenType.String)) {
+                type = ConfigNodeType.String;                
+            }
+        
+            ConfigNode leaf = new ConfigNode(type, []);
+            leaf.data = value.reproduction;
+
+            if (root == null) {
+                root = leaf;
+            } 
+            else {
+                root.children.add(leaf);
+            }
+
+            if (accept(TokenType.Concat)) {
+                if (root == null) {
+                    root = new ConfigNode(ConfigNodeType.Concat, [leaf]);
+                }
+                else {
+                    root = new ConfigNode(ConfigNodeType.Concat, [root]);
+                }
+            }
+            else {
+                break;
+            }
+        }
+        return root;
+    }
+
+    ConfigNode func() {
+        expect(TokenType.LParen);
+        bool isCall = false;
+
+        // Parse arguments
+        List<ConfigNode> args = [];
+        for (int i = 0; i < 10000; i++) {
+            ConfigNode expr = expression();
+            args.add(expr);
+            
+            // Allow syntax checking for function definitions by checking if
+            // any of the arguments are expressions
+            if (expr.type != ConfigNodeType.Ident) {
+                isCall = true;
+            }
+
+            if (!accept(TokenType.Separator)) {
+                break;
+            }
+        }
+        accept(TokenType.RParen);
+        
+        // Function definition
+        if (accept(TokenType.LBrace)) {
+            whitespace();
+
+            if (isCall) {
+                throw "Arguments in function definitions must not be expressions.";
+            }
+
+            List<ConfigNode> statements = [];
+            while (!accept(TokenType.RBrace)) {
+                statements.add(statement());
+            }
+            args.addAll(statements);
+            return new ConfigNode(ConfigNodeType.FunctionDef, args);
+        }
+        // Function call
+        else {
+            return new ConfigNode(ConfigNodeType.FunctionCall, args);
+        }
+    }
+
+    bool accept(TokenType type) {
+        if (token != null && token.type == type) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+
+    bool expect(TokenType type) {
+        if (accept(type)) {
+            return true;
+        }
+        if (token == null) {
+            throw "Error: Token is null.";
+        }
+        throw "Error: expected token $type but got ${token.type}";
     }
 }
