@@ -53,50 +53,39 @@ Creates a default set of HTML, CSS, JS, and config files.
 ```html
 <html>
     <body>
-        @@import(@@components/button-template)
+        @@import(components + '/button-template')
     </body>
 </html>
 ```
 ```html
 <html>
     <body>
-        @@import-all(@@components)
+        @@import-all(components)
     </body>
 </html>
 ```
 
-### JS Optimization
+### Build language
 ```
-js = {
-    # Invoke the remote closure compiler API.
-    @@cc-api(@@js_dir)
+# This is a comment.
+
+# This is a local variable.
+def src = '.'
+def dest = src + '/build'
+
+# This is a builtin.
+version = '0.0.1'
+
+# This is a (builtin) method call.
+copy(src, dest)
+shell('ls ' + src)
+
+# This is a custom method.
+doWork(x, y) {
+    copy(x + '/src', y)
 }
 ```
-### CSS Preprocessing
-```
-css = {
-    # This CSS task will probably be a builtin.
-    sass @@css_dir/project.scss @@output_dir/project.css
-} 
-```
-### Task Running and Configuration
-It's just a thin layer over the shell!
-```
-input_dir = .
-output_dir = ./build
-css_dir = @@input_dir/css
-js_dir = @@input_dir/js
-components = @@input_dir/components
 
-run = {
-    @@html
-    @@css
-    @@js
-    @@serve
-}
-
-...
-```
 ## What does the name mean?
 
 It's German for 'small'.
