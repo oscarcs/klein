@@ -16,3 +16,6 @@ shell('ls ' + src)
 doWork(x, y) {
     copy(x + '/src', y)
 }
+
+doWork('1', '2')
+doWork('3', '4')

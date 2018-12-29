@@ -37,7 +37,7 @@ class ConfigParser {
     String file = null;
 
     List<Token> tokens = null;
-    num index = 0;
+    int index = 0;
     Token get token {
         if (tokens != null && index < tokens.length) {
             return tokens[index];
@@ -56,7 +56,7 @@ class ConfigParser {
 
     void tokenize() {
         List<Token> tokens = [];
-        num pos = 0;
+        int pos = 0;
         while (pos < file.length) {
             // Skip whitespace:
             while (file[pos] == ' ' || file[pos] == '\t') {
@@ -107,7 +107,7 @@ class ConfigParser {
                 pos++;
             }
             else if (isIdentChar(file[pos])) {
-                num startPos = pos;
+                int startPos = pos;
                 pos++;
                 while (pos < file.length && isIdentChar(file[pos])) {
                     pos++;
@@ -121,13 +121,14 @@ class ConfigParser {
                 }
             }
             else if (file[pos] == '\'') {
-                num startPos = pos;
+                int startPos = pos;
                 pos++;
                 while (pos < file.length && file[pos] != '\'') {
                     pos++;
                 }
                 pos++; // increment past the end of the string 
-                String repr = file.substring(startPos, pos);
+                // Exclude the quote marks from the tokenized data:
+                String repr = file.substring(startPos + 1, pos - 1);
                 tokens.add(new Token(TokenType.String, repr));
             }
             else {
@@ -159,6 +160,12 @@ class ConfigParser {
         whitespace();
         
         root.children.addAll(statements);
+        root.children.forEach((a) {
+            print(a.type);
+            a.children.forEach((b) {
+                print("   ${b.type}");
+            });
+        });
         return config;
     }
 
@@ -246,6 +253,7 @@ class ConfigParser {
     ConfigNode func() {
         expect(TokenType.LParen);
         bool isCall = false;
+        ConfigNodeType type = ConfigNodeType.FunctionCall;
 
         // Parse arguments
         List<ConfigNode> args = [];
@@ -264,13 +272,14 @@ class ConfigParser {
             }
         }
         accept(TokenType.RParen);
+        int numArgs = args.length;
         
         // Function definition
         if (accept(TokenType.LBrace)) {
             whitespace();
 
             if (isCall) {
-                throw "Arguments in function definitions must not be expressions.";
+                throw "Arguments in function definitions must be names, not expressions.";
             }
 
             List<ConfigNode> statements = [];
@@ -278,12 +287,12 @@ class ConfigParser {
                 statements.add(statement());
             }
             args.addAll(statements);
-            return new ConfigNode(ConfigNodeType.FunctionDef, args);
+            type = ConfigNodeType.FunctionDef;
         }
-        // Function call
-        else {
-            return new ConfigNode(ConfigNodeType.FunctionCall, args);
-        }
+        //@@CLEANUP: Way of recording number of args feels hacky.
+        ConfigNode node = new ConfigNode(type, args);
+        node.args = numArgs;
+        return node;
     }
 
     bool accept(TokenType type) {

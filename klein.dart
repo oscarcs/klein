@@ -22,6 +22,7 @@ main(List<String> args) {
                 try {
                     var parser = new ConfigParser(f);
                     var config = parser.parse();
+                    config.run();
                 }
                 catch (e, s) {
                     print(e);
