@@ -1,0 +1,13 @@
+
+let src = './test'
+let dst = './bin'
+
+fn run() {
+    clean()
+    copy(src + '/index.html', dst)
+    copy(src + '/component.html', dst)
+}
+
+fn clean() {
+    delete(dst)
+}

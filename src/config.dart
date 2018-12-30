@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'config_parser.dart';
 
 /// A config file is just an AST of nodes to execute.
@@ -35,7 +36,7 @@ class Config {
         execute(node);
     }
 
-    /// Get a list of all the names of the tasks
+    /// Get a list of all the names of the tasks that aren't builtins
     List<String> getTaskNames() {
         List<String> names = [];
         funcs.forEach((name, value) {
@@ -170,7 +171,7 @@ class Config {
         }
     }
     
-    /// Execute a built-in function. Args are passed with names '@0', '@1' etc.
+    /// Execute a built-in function. Args are passed with names '@0', '@1' etc.,
     /// on the local variable scope
     String builtin(String name) {
         switch (name) {
@@ -178,14 +179,72 @@ class Config {
                 print(lookupLocalVar('@0'));
                 return null;
             case 'shell':
-                //@@TODO: implement
-                print('executing: ${lookupLocalVar('@0')}');
+                shell(lookupLocalVar('@0'));
                 return null;
             case 'copy':
-                //@@TODO: implement
-                print('copying ${lookupLocalVar('@0')} to ${lookupLocalVar('@1')}');
+                copy(lookupLocalVar('@0'), lookupLocalVar('@1'));
+                return null;
+            case 'delete':
+                delete(lookupLocalVar('@0'));
                 return null;
         }
         throw 'Error: Built-in function ${name} not found.';
+    }
+
+    void shell(String cmd) {
+
+    }
+
+    /// Copy a file or directory to another directory.
+    void copy(String source, String dest) {
+        // If the destination directory doesn't exist, we need to create it.
+        bool createdDir = false;
+        Directory destDir = new Directory(dest);
+        if (!destDir.existsSync()) {
+            destDir.createSync(recursive: true);
+            createdDir = true;
+        }
+        
+        // If the source is a directory, then we must be copying a directory
+        // into another directory:
+        Directory sourceDir = new Directory(source);
+        if (sourceDir.existsSync()) {
+            
+            // Recursively copy the contents of the source directory into the dest.
+            sourceDir.listSync().forEach((element) {
+                String filename = element.path.split('/').last;
+                String newPath = "${destDir.path}/${filename}";
+                
+                if (element is File) {
+                    element.copySync(newPath);
+                } 
+                else if (element is Directory) {
+                    copy(element.path, newPath);
+                }
+            });
+        }
+        // Otherwise, the source is a file being copied into a directory.
+        else {
+            File sourceFile = new File(source);
+            if (!sourceFile.existsSync()) {
+                // The copy failed, so we should clean up after ourselves.
+                if (createdDir) {
+                    destDir.deleteSync(recursive: false);
+                }
+                throw 'The path ${source} does not exist.';
+            }   
+
+            String filename = sourceFile.path.split('/').last;
+            String newPath = "${destDir.path}/${filename}"; 
+
+            sourceFile.copySync(newPath);           
+        }
+    }
+
+    void delete(String path) {
+        Directory obj = new Directory(path);
+        if (obj.existsSync()) {
+            obj.deleteSync(recursive: true);
+        }
     }
 }

@@ -1,5 +1,0 @@
-
-fn run(x) {
-    print('hello, world! ' + x)
-    shell('ls .')
-}

@@ -57,8 +57,9 @@ class ConfigParser {
         funcs = { };
         localVars = { };
         registerBuiltinFunc('print', 1);
-        registerBuiltinFunc('copy', 2);
         registerBuiltinFunc('shell', 1);
+        registerBuiltinFunc('copy', 2);
+        registerBuiltinFunc('delete', 1);
     }    
 
     /// Check a global variable exists.
