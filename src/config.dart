@@ -13,9 +13,39 @@ class Config {
 
     }
 
+    /// Execute statements in the top level.
+    void run() {
+        execute(funcs['@root']);
+    }
+
+    /// Execute a particular function as a task.
+    void task(String task, List<String> args) {
+        var node = new ConfigNode(ConfigNodeType.FunctionCall, []);
+        
+        var ident = new ConfigNode(ConfigNodeType.Ident, []);
+        ident.data = task;
+        node.children.add(ident);
+        
+        for (var arg in args) {
+            var argNode = new ConfigNode(ConfigNodeType.String, []);
+            argNode.data = arg;
+            node.children.add(argNode);
+        }
+        
+        execute(node);
+    }
+
     /// Get a list of all the names of the tasks
     List<String> getTaskNames() {
-        
+        List<String> names = [];
+        funcs.forEach((name, value) {
+            if (value.children.length > 0 && 
+                value.children.last.type != ConfigNodeType.Builtin
+            ) {
+                names.add(name);
+            }
+        });
+        return names;
     }
 
     /// Look up a global variable.
@@ -138,16 +168,6 @@ class Config {
                 }
                 throw 'Error: Variable ${node.data} is not defined.';
         }
-    }
-
-    /// Execute statements in the top level.
-    void run() {
-        execute(funcs['@root']);
-    }
-
-    // Execute a particular function as a task.
-    void task(String task) {
-        
     }
     
     /// Execute a built-in function. Args are passed with names '@0', '@1' etc.

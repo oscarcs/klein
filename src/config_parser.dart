@@ -110,9 +110,6 @@ class ConfigParser {
         ConfigTokenizer tokenizer = new ConfigTokenizer(file);
         tokens = tokenizer.tokenize();
         
-        tokens.forEach((t) => print(t.type));
-        print('');
-        
         // Parse the program!
         whitespace();
         funcs['@root'] = program();
