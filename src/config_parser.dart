@@ -1,171 +1,126 @@
 import 'config.dart';
+import 'config_tokenizer.dart';
 
-enum TokenType {
-    Newline,
-    Def,
-    Ident,
-    Equals,
-    String,
-    Concat,
-    LParen,
-    RParen,
-    Separator,
-    LBrace,
-    RBrace
+enum ConfigNodeType {
+    Block,          // Arbitrary list of nodes
+    Def,            // Ident, rhs nodes
+    Assignment,     // Ident, rhs nodes
+    Function,       // Ident, args, block
+    FunctionCall,   // Ident, args
+    Concat,         // Two String/Ident nodes
+    String,         // Leaf
+    Ident,          // Leaf
+    Builtin,        // Special node type for built-in functions
 }
 
-class Token {
-    TokenType type;
-    String reproduction;
+/// Abstract syntax tree node for the config file.
+class ConfigNode {
+    ConfigNodeType type;
+    List<ConfigNode> children;
+    String data = null;
 
-    Token(TokenType type, String reproduction) {
+    ConfigNode(ConfigNodeType type, List<ConfigNode> children) {
         this.type = type;
-        this.reproduction = reproduction;
-    }
-
-    @override
-    bool operator ==(dynamic other) {
-        if (other is! Token) return false;
-        Token t = other;
-        return (t.type == type && t.reproduction == reproduction);
+        this.children = children;
     }
 }
 
 /// Parses a config file.
 class ConfigParser {
     
+    /// The file to parse.
     String file = null;
 
+    /// Tokens produced from the tokenization process.
     List<Token> tokens = null;
     int index = 0;
     Token get token {
-        if (tokens != null && index < tokens.length) {
+        if (tokens != null && index < tokens.length && index >= 0) {
             return tokens[index];
         }
-        return null;
+        throw 'Error: End of token stream exceeded.';
     }
+
+    /// Symbol tables.
+    //@@ENHANCEMENT: Stack of symbol tables for nested scopes.
+    Map<String, String> localVars;
+    Map<String, String> globalVars;
+    Map<String, ConfigNode> funcs;
 
     ConfigParser(String file) {
         this.file = file;
+
+        // Set up the builtins:
+        globalVars = {
+            'version': ''
+        };
+        funcs = { };
+        localVars = { };
+        registerBuiltinFunc('print', 1);
+        registerBuiltinFunc('copy', 2);
+        registerBuiltinFunc('shell', 1);
+    }    
+
+    /// Check a global variable exists.
+    bool existsGlobalVar(String name) {
+        return globalVars.containsKey(name);
     }
 
-    bool isIdentChar(String s) {
-        RegExp exp = new RegExp("[A-Za-z]");
-        return (exp.hasMatch(s));
+    // Check a local variable exists.
+    bool existsLocalVar(String name) {
+        return localVars.containsKey(name);
     }
 
-    void tokenize() {
-        List<Token> tokens = [];
-        int pos = 0;
-        while (pos < file.length) {
-            // Skip whitespace:
-            while (file[pos] == ' ' || file[pos] == '\t') {
-                pos++;
+    /// Check a local or global variable exists.
+    bool existsVar(String name) {
+        return existsGlobalVar(name) || existsLocalVar(name);
+    }
+
+    /// Check that a certain function exists.
+    bool existsFunc(String name) {
+        return funcs.containsKey(name);
+    }
+
+    /// Create a built-in function with a given name and number of arguments.
+    void registerBuiltinFunc(String name, int args) {
+        if (!existsFunc(name)) {  
+            List<ConfigNode> children = [];  
+            
+            ConfigNode identNode = new ConfigNode(ConfigNodeType.Ident, []);
+            identNode.data = name;
+            children.add(identNode);
+
+            for (int i = 0; i < args; i++) {
+                ConfigNode arg = new ConfigNode(ConfigNodeType.Ident, []);
+                arg.data = '@' + i.toString();
+                children.add(arg);
             }
 
-            if (file[pos] == '#') {
-                // Ignore comments.
-                while (file[pos] != '\n') {
-                    pos++;
-                }
-                pos++;
-            }
-            else if (file[pos] == '\n' || file[pos] == '\r') {
-                // Add a newline token into the stream:
-                tokens.add(new Token(TokenType.Newline, "\n"));
-                pos++;
-                while (pos < file.length && (file[pos] == '\n' || file[pos] == '\r')) {
-                    pos++;
-                }
-            }
-            else if (file[pos] == '{') {
-                tokens.add(new Token(TokenType.LBrace, '{'));
-                pos++;
-            }
-            else if (file[pos] == '}') {
-                tokens.add(new Token(TokenType.RBrace, '}'));
-                pos++;
-            }
-            else if (file[pos] == '(') {
-                tokens.add(new Token(TokenType.LParen, '('));
-                pos++;
-            }
-            else if (file[pos] == ')') {
-                tokens.add(new Token(TokenType.RParen, ')'));
-                pos++;
-            }
-            else if (file[pos] == '=') {
-                tokens.add(new Token(TokenType.Equals, '='));
-                pos++;
-            }
-            else if (file[pos] == '+') {
-                tokens.add(new Token(TokenType.Concat, '+'));
-                pos++;
-            }
-            else if (file[pos] == ',') {
-                tokens.add(new Token(TokenType.Separator, ','));
-                pos++;
-            }
-            else if (isIdentChar(file[pos])) {
-                int startPos = pos;
-                pos++;
-                while (pos < file.length && isIdentChar(file[pos])) {
-                    pos++;
-                }
-                String repr = file.substring(startPos, pos);
-                if (repr == 'def') {
-                    tokens.add(new Token(TokenType.Def, repr));
-                }
-                else {
-                    tokens.add(new Token(TokenType.Ident, repr));
-                }
-            }
-            else if (file[pos] == '\'') {
-                int startPos = pos;
-                pos++;
-                while (pos < file.length && file[pos] != '\'') {
-                    pos++;
-                }
-                pos++; // increment past the end of the string 
-                // Exclude the quote marks from the tokenized data:
-                String repr = file.substring(startPos + 1, pos - 1);
-                tokens.add(new Token(TokenType.String, repr));
-            }
-            else {
-                print("Unexpected character: ${file[pos]}");
-                break;
-            }
+            ConfigNode execNode = new ConfigNode(ConfigNodeType.Builtin, []);
+            execNode.data = name;
+            children.add(execNode);
+
+            funcs[name] = new ConfigNode(ConfigNodeType.Function, children);
+            return;
         }
-
-        // @@HACK: add an extra terminating newline.
-        tokens.add(new Token(TokenType.Newline, '\n'));
-        this.tokens = tokens;
-    }
-
-    void advance() {
-        index++;
+        throw 'A function with the name ${name} is already registered!';
     }
 
     Config parse() {
-        tokenize();
-        var root = new ConfigNode(ConfigNodeType.Program, []);
-        var config = new Config(root);
+        ConfigTokenizer tokenizer = new ConfigTokenizer(file);
+        tokens = tokenizer.tokenize();
         
-        List<ConfigNode> statements = [];
-       
-        whitespace();
-        while (token != null) {
-            statements.add(statement());
-        }
-        whitespace();
+        tokens.forEach((t) => print(t.type));
+        print('');
         
-        root.children.addAll(statements);
-        root.children.forEach((a) {
-            print(a.type);
-            a.children.forEach((b) {
-                print("   ${b.type}");
-            });
-        });
+        // Parse the program!
+        whitespace();
+        funcs['@root'] = program();
+
+        var config = new Config();
+        config.localVars = localVars;
+        config.globalVars = globalVars;
+        config.funcs = funcs;
         return config;
     }
 
@@ -173,34 +128,83 @@ class ConfigParser {
         while (accept(TokenType.Newline)) { }
     }
 
+    ConfigNode program() {
+        List<ConfigNode> body = [];
+        while (!accept(TokenType.End)) {
+            var stmt = statement();
+            if (stmt != null) {
+                body.add(stmt);
+            }
+        }
+        return new ConfigNode(ConfigNodeType.Block, body);
+    }
+
+    ConfigNode block() {
+        List<ConfigNode> body = [];
+        while (!accept(TokenType.RBrace)) {
+            var stmt = statement();
+            if (stmt != null) {
+                body.add(stmt);
+            }
+        }
+        return new ConfigNode(ConfigNodeType.Block, body);
+    }
+
     ConfigNode statement() {
-        var ident = token;
         ConfigNode node = null;
 
-        // Local variable
+        var ident = token;
+        ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
+        lhs.data = ident.reproduction;
+
+        // Variable definition
         if (accept(TokenType.Def)) {
+            // Change the identifier token
             ident = token;
-            ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
             lhs.data = ident.reproduction;
+
+            // Check that the identifier is not defined already:
+            if (existsVar(lhs.data)) {
+                throw 'The identifier ${ident.reproduction} has already been defined.';
+            }
+
+            // Add the identifier to the symbol table:
+            globalVars[lhs.data] = null;
 
             expect(TokenType.Ident);
             expect(TokenType.Equals);
+
             ConfigNode rhs = expression();
+            
             node = ConfigNode(ConfigNodeType.Def, [lhs, rhs]);
         }
-        // Builtin, redefinition, or function
+        // Function definition
+        else if (accept(TokenType.FunctionDef)) {
+            // Change the identifier token
+            ident = token;
+            lhs.data = ident.reproduction;
+
+            accept(TokenType.Ident);
+
+            ConfigNode functionNode = functionDef();     
+            functionNode.children.insert(0, lhs);
+            funcs[lhs.data] = functionNode;
+        }
         else if (accept(TokenType.Ident)) {
+            // Assignment
             if (accept(TokenType.Equals)) {
-                ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
-                lhs.data = ident.reproduction;
+
+                // Check that the identifier exists:
+                if (!existsVar(ident.reproduction)) {
+                    throw 'Can\'t assign to nonexistent variable ${ident.reproduction}.';
+                }
 
                 ConfigNode rhs = expression();
                 node = ConfigNode(ConfigNodeType.Assignment, [lhs, rhs]);
             }
+            // Function call
             else {
-                ConfigNode lhs = new ConfigNode(ConfigNodeType.Ident, []);
-                lhs.data = ident.reproduction;
-                node = func();
+                node = functionCall();
                 node.children.insert(0, lhs);
             }
         }
@@ -211,6 +215,60 @@ class ConfigParser {
         return node;
     }
 
+    ConfigNode functionDef() {
+        expect(TokenType.LParen);
+
+        List<ConfigNode> children = [];
+        for (int i = 0; i < 10000; i++) {
+            // Create the arg node:
+            ConfigNode arg = new ConfigNode(ConfigNodeType.Ident, []);
+            arg.data = token.reproduction;
+            accept(TokenType.Ident);
+
+            children.add(arg);
+
+            // Add the argument name to the local scope:
+            localVars[arg.data] = null;
+
+            if (!accept(TokenType.Separator)) {
+                break;
+            }
+        }
+
+        expect(TokenType.RParen);
+        expect(TokenType.LBrace);
+        whitespace();
+
+        // Parse the statements inside the function.
+        ConfigNode body = block();
+        children.add(body);
+        
+        // Pop the local scope:
+        localVars = new Map<String, String>();
+
+        // Create the function AST subtree:
+        return new ConfigNode(ConfigNodeType.Function, children);
+    }
+
+    ConfigNode functionCall() {
+        expect(TokenType.LParen);
+
+        // Parse arguments
+        List<ConfigNode> args = [];
+        for (int i = 0; i < 10000; i++) {
+            ConfigNode expr = expression();
+            args.add(expr);
+
+            if (!accept(TokenType.Separator)) {
+                break;
+            }
+        }
+        expect(TokenType.RParen);
+        return new ConfigNode(ConfigNodeType.FunctionCall, args);
+    }
+
+    //@@ENHANCEMENT: use a better algorithm (something more generic?)
+    /// Parse an expression
     ConfigNode expression() {
         ConfigNode root;
         ConfigNodeType type;
@@ -219,7 +277,12 @@ class ConfigParser {
             Token value = token;
         
             if (accept(TokenType.Ident)) {
-                type = ConfigNodeType.Ident;                
+                type = ConfigNodeType.Ident;   
+                
+                // Check that the identifier is defined:
+                if (!existsVar(value.reproduction)) {
+                    throw 'Undefined identifier ${value.reproduction} in expression.';
+                }        
             }
             else if (accept(TokenType.String)) {
                 type = ConfigNodeType.String;                
@@ -250,54 +313,9 @@ class ConfigParser {
         return root;
     }
 
-    ConfigNode func() {
-        expect(TokenType.LParen);
-        bool isCall = false;
-        ConfigNodeType type = ConfigNodeType.FunctionCall;
-
-        // Parse arguments
-        List<ConfigNode> args = [];
-        for (int i = 0; i < 10000; i++) {
-            ConfigNode expr = expression();
-            args.add(expr);
-            
-            // Allow syntax checking for function definitions by checking if
-            // any of the arguments are expressions
-            if (expr.type != ConfigNodeType.Ident) {
-                isCall = true;
-            }
-
-            if (!accept(TokenType.Separator)) {
-                break;
-            }
-        }
-        accept(TokenType.RParen);
-        int numArgs = args.length;
-        
-        // Function definition
-        if (accept(TokenType.LBrace)) {
-            whitespace();
-
-            if (isCall) {
-                throw "Arguments in function definitions must be names, not expressions.";
-            }
-
-            List<ConfigNode> statements = [];
-            while (!accept(TokenType.RBrace)) {
-                statements.add(statement());
-            }
-            args.addAll(statements);
-            type = ConfigNodeType.FunctionDef;
-        }
-        //@@CLEANUP: Way of recording number of args feels hacky.
-        ConfigNode node = new ConfigNode(type, args);
-        node.args = numArgs;
-        return node;
-    }
-
     bool accept(TokenType type) {
         if (token != null && token.type == type) {
-            advance();
+            index++;
             return true;
         }
         return false;

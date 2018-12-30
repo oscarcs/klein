@@ -70,8 +70,8 @@ Creates a default set of HTML, CSS, JS, and config files.
 # This is a comment.
 
 # This is a local variable.
-def src = '.'
-def dest = src + '/build'
+let src = '.'
+let dest = src + '/build'
 
 # 'version' is a builtin.
 version = '0.0.1'
@@ -82,9 +82,11 @@ shell('ls ' + src)
 
 # This is a custom method. 
 # This can be called as a task from the command line.
-doWork(x, y) {
+fn doWork(x, y) {
     copy(x + '/src', y)
 }
+
+print('hello, world!')
 ```
 
 ## What does the name mean?

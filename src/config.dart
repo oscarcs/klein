@@ -1,53 +1,16 @@
-
-enum ConfigNodeType {
-    Program,        // Arbitrary list of nodes
-    Def,            // Ident, rhs nodes
-    Assignment,     // Ident, rhs nodes
-    FunctionDef,    // Name, two arguments, list of statement nodes
-    FunctionCall,   // Arbitrary argument nodes
-    Concat,         // Two String/Ident nodes
-    String,         // Leaf
-    Ident,          // Leaf
-    Builtin,        // Special node type for built-in functions
-}
-
-/// Abstract syntax tree node for the config file.
-class ConfigNode {
-    ConfigNodeType type;
-    List<ConfigNode> children;
-    String data = null;
-    int args = 0;
-
-    ConfigNode(ConfigNodeType type, List<ConfigNode> children) {
-        this.type = type;
-        this.children = children;
-    }
-}
+import 'config_parser.dart';
 
 /// A config file is just an AST of nodes to execute.
 class Config {
 
-    ConfigNode root;
-
-    // Symbol tables.
-    Map<String, String> vars;
-    Map<String, List<ConfigNode>> funcs;
+    /// Symbol tables.
     //@@ENHANCEMENT: Stack of symbol tables for nested scopes.
     Map<String, String> localVars;
+    Map<String, String> globalVars;
+    Map<String, ConfigNode> funcs;
 
-    Config(ConfigNode root) {
-        this.root = root;
+    Config() {
 
-        // Set up the builtin vars:
-        vars = {
-            'version': ''
-        };
-        funcs = { };
-        localVars = { };
-
-        registerBuiltinFunc('print', 1);
-        registerBuiltinFunc('copy', 2);
-        registerBuiltinFunc('shell', 1);
     }
 
     /// Get a list of all the names of the tasks
@@ -55,15 +18,15 @@ class Config {
         
     }
 
-    /// Look up global variables
-    String lookupVar(String name) {
-        if (vars.containsKey(name)) {
-            return vars[name];
+    /// Look up a global variable.
+    String lookupGlobalVar(String name) {
+        if (globalVars.containsKey(name)) {
+            return globalVars[name];
         }
         return null;
     }
 
-    // Look up local variables
+    // Look up a local variable.
     String lookupLocalVar(String name) {
         if (localVars.containsKey(name)) {
             return localVars[name];
@@ -71,40 +34,28 @@ class Config {
         return null;
     }
 
-    //@@CLEANUP
-    String lookupVarOrLocalVar(String name) {
-        //@@OPTIMIZE
-        return lookupVar(name) == null ? lookupLocalVar(name) : lookupVar(name);
+    /// Look up variable, either local or global.
+    String lookupVar(String name) {
+        String val = lookupGlobalVar(name);
+        val ??= lookupLocalVar(name);
+        return val;
     }
 
-    /// Look up functions
-    List<ConfigNode> lookupFunc(String name) {
+    /// Look up a function.
+    ConfigNode lookupFunc(String name) {
         if (funcs.containsKey(name)) {
             return funcs[name];
         }
         return null;
     }    
 
-    void registerBuiltinFunc(String name, int args) {
-        ConfigNode execNode = new ConfigNode(ConfigNodeType.Builtin, []);
-        execNode.data = name;
-        funcs[name] = [];
-        for (int i = 0; i < args; i++) {
-            ConfigNode arg = new ConfigNode(ConfigNodeType.Ident, []);
-            arg.data = '@' + i.toString();
-            funcs[name].add(arg);
-        }
-        funcs[name].add(execNode);
-    }
-
     /// The main interpretation method.
     String execute(ConfigNode node) {
         switch (node.type) {
             case ConfigNodeType.Builtin:
-                builtin(node.data);
-                return null;
+                return builtin(node.data);
 
-            case ConfigNodeType.Program:
+            case ConfigNodeType.Block:
                 for (var child in node.children) {
                     execute(child);
                 }
@@ -113,15 +64,15 @@ class Config {
             case ConfigNodeType.Def:
                 String name = node.children[0].data;
                 if (lookupVar(name) == null && lookupFunc(name) == null) {
-                    vars[name] = execute(node.children[1]);
+                    globalVars[name] = execute(node.children[1]);
                     return null;
                 }
                 throw 'Error: Variable ${name} has already been defined.';
 
             case ConfigNodeType.Assignment:
                 String name = node.children[0].data;
-                if (lookupVar(name) != null) {
-                    vars[name] = execute(node.children[1]);
+                if (lookupGlobalVar(name) != null) {
+                    globalVars[name] = execute(node.children[1]);
                     return null;
                 }
                 else if (lookupLocalVar(name) != null) {
@@ -130,28 +81,24 @@ class Config {
                 }
                 throw 'Error: Variable ${name} is not defined.';
 
-            case ConfigNodeType.FunctionDef:
-                String name = node.children[0].data;
-                if (lookupFunc(name) == null) {
-                    funcs[name] = node.children.sublist(1, node.children.length);
-                    return null;
-                }
-                throw 'Error: Function ${name} is already defined.';
+            case ConfigNodeType.Function:
+                // Execute the block contained within the function:
+                return execute(node.children.last);
 
             case ConfigNodeType.FunctionCall:
                 String name = node.children[0].data;
-                List<ConfigNode> target = lookupFunc(name);
-                
+
+                ConfigNode target = lookupFunc(name);
                 if (target != null) {
                     
                     // Set up the arguments:
-                    for (int i = 0; i < node.args; i++) {
-                        String argName = target[i].data;
-                        ConfigNode arg = node.children[i + 1];
+                    for (int i = 1; i < node.children.length; i++) {
+                        String argName = target.children[i].data;
+                        ConfigNode arg = node.children[i];
 
                         // If the arg is a variable, look up that variable 
                         if (arg.type == ConfigNodeType.Ident) {
-                            localVars[argName] = lookupVarOrLocalVar(arg.data);
+                            localVars[argName] = lookupVar(arg.data);
                         } 
                         // Otherwise just use the result of the expression
                         else {
@@ -159,11 +106,8 @@ class Config {
                         }
                     }
 
-                    //@@ENHANCEMENT: Change the function statements to a new 'Block' node type.
-                    int numStatements = target.length - node.args;
-                    for (int i = node.args; i < node.args + numStatements; i++) {
-                        execute(target[i]);
-                    }
+                    // Execute the function
+                    execute(target.children.last);
 
                     // Clear the function scope:
                     localVars = new Map<String, String>();
@@ -177,11 +121,11 @@ class Config {
                 String right = execute(node.children[1]);
                 if (node.children[0].type == ConfigNodeType.Ident) {
                     //@@CLEANUP
-                    left = lookupVarOrLocalVar(left);
+                    left = lookupVar(left);
                 }
                 if (node.children[1].type == ConfigNodeType.Ident) {
                     //@@CLEANUP
-                    right = lookupVarOrLocalVar(right);
+                    right = lookupVar(right);
                 }
                 return left + right;
 
@@ -189,10 +133,7 @@ class Config {
                 return node.data;
 
             case ConfigNodeType.Ident:
-                if (lookupLocalVar(node.data) != null ||
-                    lookupVar(node.data) != null ||
-                    lookupFunc(node.data) != null
-                ) {
+                if (lookupVar(node.data) != null || lookupFunc(node.data) != null) {
                     return node.data;
                 }
                 throw 'Error: Variable ${node.data} is not defined.';
@@ -201,20 +142,21 @@ class Config {
 
     /// Execute statements in the top level.
     void run() {
-        print('');
-        
-        execute(root);
+        execute(funcs['@root']);
     }
 
     // Execute a particular function as a task.
     void task(String task) {
-        List<String> tasks = getTaskNames();
+        
     }
     
-    /// Execute a built-in function. Args are passed with names '0', '1' etc.
+    /// Execute a built-in function. Args are passed with names '@0', '@1' etc.
     /// on the local variable scope
     String builtin(String name) {
         switch (name) {
+            case 'print':
+                print(lookupLocalVar('@0'));
+                return null;
             case 'shell':
                 //@@TODO: implement
                 print('executing: ${lookupLocalVar('@0')}');
