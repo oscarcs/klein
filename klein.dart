@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'src/config_parser.dart';
+import 'src/interpreter.dart';
 
 main(List<String> args) {
     String inputFileName;
@@ -24,16 +24,16 @@ main(List<String> args) {
             .readAsString()
             .then((String f) {
                 try {
-                    var parser = new ConfigParser(f);
-                    var config = parser.parse();
-                    config.run();
+                    var interpreter = new Interpreter(f);
+                    interpreter.interpret();
+                    
                     if (inputArgs.length > 0) {
                         if (inputArgs[0] == 'list') {
                             print('The available tasks are:');
-                            config.getTaskNames().forEach((name) => print('   $name'));
+                            interpreter.getTaskNames().forEach((name) => print('   $name'));
                         }
                         else {
-                            config.task(inputArgs[0], inputArgs.sublist(1));
+                            interpreter.task(inputArgs[0], inputArgs.sublist(1));
                         }
                     }
                 }

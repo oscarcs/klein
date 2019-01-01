@@ -1,6 +1,6 @@
 # Design Document
 
-*Web development, the 'hard way'.*
+*Web development, the hard way.*
 
 Today, many websites are written as single-page applications, which use client-side Javascript to control the display of the page. This means that a single HTML 'document' is loaded, containing the required HTML components for the application. Frequently, the Javascript required by the application is also bundled together. 
 
@@ -24,7 +24,7 @@ By making a few simplifying assumptions, we can obviate the need for most of the
 
 ## Why does this tool exist?
 
-- There are a number of good existing standalone tools that provide 95% of the functionality needed to build modern single 
+- There are a number of good existing standalone tools that provide 95% of the functionality needed to build modern single page applications.
 - These tools are not linked together and easy to use.
 - We want to solve these web development problems, in roughly this order: HTML compilation / templating / preprocessing; CSS preprocessing; 
 

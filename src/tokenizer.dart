@@ -31,12 +31,12 @@ class Token {
     }
 }
 
-class ConfigTokenizer {
+class Tokenizer {
 
-    String file = null;
+    String code = null;
 
-    ConfigTokenizer(String file) {
-        this.file = file;
+    Tokenizer(String code) {
+        this.code = code;
     }
 
     bool isIdentChar(String s) {
@@ -47,64 +47,64 @@ class ConfigTokenizer {
     List<Token> tokenize () { 
         List<Token> tokens = [];
         int pos = 0;
-        while (pos < file.length) {
+        while (pos < code.length) {
             // Skip whitespace:
-            while (file[pos] == ' ' || file[pos] == '\t') {
+            while (code[pos] == ' ' || code[pos] == '\t') {
                 pos++;
             }
 
-            if (file[pos] == '#') {
+            if (code[pos] == '#') {
                 // Ignore comments.
-                while (file[pos] != '\n') {
+                while (code[pos] != '\n') {
                     pos++;
                 }
                 pos++;
             }
-            else if (file[pos] == '\n' || file[pos] == '\r') {
+            else if (code[pos] == '\n' || code[pos] == '\r') {
                 // Add a newline token into the stream:
                 tokens.add(new Token(TokenType.Newline, "\n"));
                 pos++;
-                while (pos < file.length && (file[pos] == '\n' || file[pos] == '\r')) {
+                while (pos < code.length && (code[pos] == '\n' || code[pos] == '\r')) {
                     pos++;
                 }
             }
-            else if (file[pos] == '{') {
+            else if (code[pos] == '{') {
                 tokens.add(new Token(TokenType.LBrace, '{'));
                 pos++;
             }
-            else if (file[pos] == '}') {
+            else if (code[pos] == '}') {
                 tokens.add(new Token(TokenType.RBrace, '}'));
                 pos++;
             }
-            else if (file[pos] == '(') {
+            else if (code[pos] == '(') {
                 tokens.add(new Token(TokenType.LParen, '('));
                 pos++;
             }
-            else if (file[pos] == ')') {
+            else if (code[pos] == ')') {
                 tokens.add(new Token(TokenType.RParen, ')'));
                 pos++;
             }
-            else if (file[pos] == '=') {
+            else if (code[pos] == '=') {
                 tokens.add(new Token(TokenType.Equals, '='));
                 pos++;
             }
-            else if (file[pos] == '+') {
+            else if (code[pos] == '+') {
                 tokens.add(new Token(TokenType.Concat, '+'));
                 pos++;
             }
-            else if (file[pos] == ',') {
+            else if (code[pos] == ',') {
                 tokens.add(new Token(TokenType.Separator, ','));
                 pos++;
             }
-            else if (isIdentChar(file[pos])) {
+            else if (isIdentChar(code[pos])) {
                 int startPos = pos;
                 pos++;
-                while (pos < file.length && isIdentChar(file[pos])) {
+                while (pos < code.length && isIdentChar(code[pos])) {
                     pos++;
                 }
                 
                 // Tokenize 
-                String repr = file.substring(startPos, pos);
+                String repr = code.substring(startPos, pos);
                 if (repr == 'let') {
                     tokens.add(new Token(TokenType.Def, repr));
                 }
@@ -115,19 +115,19 @@ class ConfigTokenizer {
                     tokens.add(new Token(TokenType.Ident, repr));
                 }
             }
-            else if (file[pos] == '\'') {
+            else if (code[pos] == '\'') {
                 int startPos = pos;
                 pos++;
-                while (pos < file.length && file[pos] != '\'') {
+                while (pos < code.length && code[pos] != '\'') {
                     pos++;
                 }
                 pos++; // increment past the end of the string 
                 // Exclude the quote marks from the tokenized data:
-                String repr = file.substring(startPos + 1, pos - 1);
+                String repr = code.substring(startPos + 1, pos - 1);
                 tokens.add(new Token(TokenType.String, repr));
             }
             else {
-                throw "Unexpected character: ${file[pos]}";
+                throw "Unexpected character: ${code[pos]}";
             }
         }
 

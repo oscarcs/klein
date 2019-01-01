@@ -1,0 +1,12 @@
+
+let src = './test'
+let dst = './bin'
+
+fn run() {
+    clean()
+    preprocess(src + '/index.html', dst)
+}
+
+fn clean() {
+    delete(dst)
+}
