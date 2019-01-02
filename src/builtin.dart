@@ -104,4 +104,17 @@ class Builtin {
             }
         }
     }
+
+    /// Import a file
+    static String import(String path) {
+        String output;
+        File file = new File(path);
+        if (file.existsSync()) {
+            output = file.readAsStringSync();
+        }
+        else {
+            throw 'Cannot import ${path} because it does not exist.';
+        }
+        return output;
+    }
 }

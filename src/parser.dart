@@ -1,5 +1,6 @@
 import 'interpreter.dart';
 import 'tokenizer.dart';
+import 'symtab.dart';
 
 enum NodeType {
     Block,          // Arbitrary list of nodes
@@ -41,83 +42,32 @@ class Parser {
         throw 'Error: End of token stream exceeded.';
     }
 
-    /// Symbol tables.
-    //@@ENHANCEMENT: Stack of symbol tables for nested scopes.
-    Map<String, String> localVars;
-    Map<String, String> globalVars;
-    Map<String, Node> funcs;
+    /// Symbol table
+    SymTab symtab;
 
     Parser(String code) {
         this.code = code;
 
         // Set up the builtins:
-        globalVars = {
-            'version': ''
-        };
-        funcs = { };
-        localVars = { };
-        registerBuiltinFunc('print', 1);
-        registerBuiltinFunc('shell', 1);
-        registerBuiltinFunc('copy', 2);
-        registerBuiltinFunc('delete', 1);
-        registerBuiltinFunc('preprocess', 2);
-        registerBuiltinFunc('import', 1);
-    }    
-
-    /// Check a global variable exists.
-    bool existsGlobalVar(String name) {
-        return globalVars.containsKey(name);
+        symtab = new SymTab();
+        symtab
+            ..registerBuiltinFunc('print', 1)
+            ..registerBuiltinFunc('shell', 1)
+            ..registerBuiltinFunc('copy', 2)
+            ..registerBuiltinFunc('delete', 1)
+            ..registerBuiltinFunc('preprocess', 2)
+            ..registerBuiltinFunc('import', 1);
     }
 
-    // Check a local variable exists.
-    bool existsLocalVar(String name) {
-        return localVars.containsKey(name);
-    }
-
-    /// Check a local or global variable exists.
-    bool existsVar(String name) {
-        return existsGlobalVar(name) || existsLocalVar(name);
-    }
-
-    /// Check that a certain function exists.
-    bool existsFunc(String name) {
-        return funcs.containsKey(name);
-    }
-
-    /// Create a built-in function with a given name and number of arguments.
-    void registerBuiltinFunc(String name, int args) {
-        if (!existsFunc(name)) {  
-            List<Node> children = [];  
-            
-            Node identNode = new Node(NodeType.Ident, []);
-            identNode.data = name;
-            children.add(identNode);
-
-            for (int i = 0; i < args; i++) {
-                Node arg = new Node(NodeType.Ident, []);
-                arg.data = '@' + i.toString();
-                children.add(arg);
-            }
-
-            Node execNode = new Node(NodeType.Builtin, []);
-            execNode.data = name;
-            children.add(execNode);
-
-            funcs[name] = new Node(NodeType.Function, children);
-            return;
-        }
-        throw 'A function with the name ${name} is already registered!';
-    }
-
-    void parse() {
+    Node parse() {
         Tokenizer tokenizer = new Tokenizer(code);
         tokens = tokenizer.tokenize();
         
         // Parse the program!
         whitespace();
-        funcs['@root'] = program();
+        Node root = program();
 
-        //@@TODO: make this return something meaningful.
+        return root;
     }
 
     void whitespace() {
@@ -160,12 +110,12 @@ class Parser {
             lhs.data = ident.reproduction;
 
             // Check that the identifier is not defined already:
-            if (existsVar(lhs.data)) {
+            if (symtab.existsVar(lhs.data)) {
                 throw 'The identifier ${ident.reproduction} has already been defined.';
             }
 
             // Add the identifier to the symbol table:
-            globalVars[lhs.data] = null;
+            symtab.globalVars[lhs.data] = null;
 
             expect(TokenType.Ident);
             expect(TokenType.Equals);
@@ -184,14 +134,14 @@ class Parser {
 
             Node functionNode = functionDef();     
             functionNode.children.insert(0, lhs);
-            funcs[lhs.data] = functionNode;
+            symtab.funcs[lhs.data] = functionNode;
         }
         else if (accept(TokenType.Ident)) {
             // Assignment
             if (accept(TokenType.Equals)) {
 
                 // Check that the identifier exists:
-                if (!existsVar(ident.reproduction)) {
+                if (!symtab.existsVar(ident.reproduction)) {
                     throw 'Can\'t assign to nonexistent variable ${ident.reproduction}.';
                 }
 
@@ -205,8 +155,9 @@ class Parser {
             }
         }
         else {
-            throw "Error: Expected a statement, got ${token.type} instead.";
+            node = expression();
         }
+        
         expect(TokenType.Newline);
         return node;
     }
@@ -224,7 +175,7 @@ class Parser {
             children.add(arg);
 
             // Add the argument name to the local scope:
-            localVars[arg.data] = null;
+            symtab.localVars[arg.data] = null;
 
             if (!accept(TokenType.Separator)) {
                 break;
@@ -240,7 +191,7 @@ class Parser {
         children.add(body);
         
         // Pop the local scope:
-        localVars = new Map<String, String>();
+        symtab.localVars = new Map<String, String>();
 
         // Create the function AST subtree:
         return new Node(NodeType.Function, children);
@@ -276,7 +227,7 @@ class Parser {
                 type = NodeType.Ident;   
                 
                 // Check that the identifier is defined:
-                if (!existsVar(value.reproduction)) {
+                if (!symtab.existsVar(value.reproduction)) {
                     throw 'Undefined identifier ${value.reproduction} in expression.';
                 }        
             }

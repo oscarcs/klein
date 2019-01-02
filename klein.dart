@@ -1,6 +1,10 @@
 import 'dart:io';
 import 'src/interpreter.dart';
 
+class Klein {
+    static Interpreter interpreter;  
+}
+
 main(List<String> args) {
     String inputFileName;
     List<String> inputArgs = [];
@@ -24,16 +28,16 @@ main(List<String> args) {
             .readAsString()
             .then((String f) {
                 try {
-                    var interpreter = new Interpreter(f);
-                    interpreter.interpret();
+                    Klein.interpreter = new Interpreter(f);
+                    Klein.interpreter.interpret();
                     
                     if (inputArgs.length > 0) {
                         if (inputArgs[0] == 'list') {
                             print('The available tasks are:');
-                            interpreter.getTaskNames().forEach((name) => print('   $name'));
+                            Klein.interpreter.getTaskNames().forEach((name) => print('   $name'));
                         }
                         else {
-                            interpreter.task(inputArgs[0], inputArgs.sublist(1));
+                            Klein.interpreter.task(inputArgs[0], inputArgs.sublist(1));
                         }
                     }
                 }

@@ -1,3 +1,5 @@
+import '../klein.dart';
+
 class Preprocessor {
     String fileContents;
     String path;
@@ -8,7 +10,22 @@ class Preprocessor {
     }
 
     String preprocess() {
-        print(fileContents);
-        return fileContents;
+        String output = fileContents;
+        for (Match match in '@@'.allMatches(output)) {
+            int loc = match.start;
+            while (output[loc] != '\n' && output[loc] != '\r') {
+                loc++;
+            }
+
+            String line = output.substring(match.start + 2, loc);
+
+            // Execute the line
+            String result = Klein.interpreter.interpret(code: line);
+            if (result == null) {
+                result = '';
+            }
+            output = output.replaceRange(match.start, loc, result);
+        }
+        return output;
     }
 }

@@ -1,32 +1,32 @@
 import 'parser.dart';
 import 'builtin.dart';
+import 'symtab.dart';
 
 /// The Klein AST interpreter.
 class Interpreter {
 
-    String code;
+    String file;
+    SymTab symtab;
 
-    /// Symbol tables.
-    //@@ENHANCEMENT: Stack of symbol tables for nested scopes with separate types.
-    Map<String, String> localVars;
-    Map<String, String> globalVars;
-    Map<String, Node> funcs;
-
-    Interpreter(String code) {
-        this.code = code;
+    Interpreter(String file) {
+        this.file = file;
     }
 
+    //@@CLEANUP: split into two methods or something
     /// Execute statements in the top level.
-    void interpret() {
-        Parser parser = new Parser(code);
-        parser.parse();
-
-        //@@TODO: change this to be something cleaner.
-        localVars = parser.localVars;
-        globalVars = parser.globalVars;
-        funcs = parser.funcs;
-
-        execute(funcs['@root']);
+    String interpret({String code}) {
+        if (code != null) {
+            Parser parser = new Parser(code);
+            parser.symtab = symtab;
+            Node root = parser.parse();
+            return execute(root);
+        }
+        else {
+            Parser parser = new Parser(file);
+            Node root = parser.parse();
+            symtab = parser.symtab;
+            return execute(root);
+        }
     }
 
     /// Execute a particular function as a task.
@@ -49,7 +49,7 @@ class Interpreter {
     /// Get a list of all the names of the tasks that aren't builtins
     List<String> getTaskNames() {
         List<String> names = [];
-        funcs.forEach((name, value) {
+        symtab.funcs.forEach((name, value) {
             if (value.children.length > 0 && 
                 value.children.last.type != NodeType.Builtin
             ) {
@@ -59,37 +59,6 @@ class Interpreter {
         return names;
     }
 
-    /// Look up a global variable.
-    String lookupGlobalVar(String name) {
-        if (globalVars.containsKey(name)) {
-            return globalVars[name];
-        }
-        return null;
-    }
-
-    // Look up a local variable.
-    String lookupLocalVar(String name) {
-        if (localVars.containsKey(name)) {
-            return localVars[name];
-        }
-        return null;
-    }
-
-    /// Look up variable, either local or global.
-    String lookupVar(String name) {
-        String val = lookupGlobalVar(name);
-        val ??= lookupLocalVar(name);
-        return val;
-    }
-
-    /// Look up a function.
-    Node lookupFunc(String name) {
-        if (funcs.containsKey(name)) {
-            return funcs[name];
-        }
-        return null;
-    }    
-
     /// The main interpretation method.
     String execute(Node node) {
         switch (node.type) {
@@ -97,27 +66,28 @@ class Interpreter {
                 return builtin(node.data);
 
             case NodeType.Block:
+                String result;
                 for (var child in node.children) {
-                    execute(child);
+                    result = execute(child);
                 }
-                break;
+                return result;
 
             case NodeType.Def:
                 String name = node.children[0].data;
-                if (lookupVar(name) == null && lookupFunc(name) == null) {
-                    globalVars[name] = execute(node.children[1]);
+                if (symtab.lookupVar(name) == null && symtab.lookupFunc(name) == null) {
+                    symtab.globalVars[name] = execute(node.children[1]);
                     return null;
                 }
                 throw 'Error: Variable ${name} has already been defined.';
 
             case NodeType.Assignment:
                 String name = node.children[0].data;
-                if (lookupGlobalVar(name) != null) {
-                    globalVars[name] = execute(node.children[1]);
+                if (symtab.lookupGlobalVar(name) != null) {
+                    symtab.globalVars[name] = execute(node.children[1]);
                     return null;
                 }
-                else if (lookupLocalVar(name) != null) {
-                    localVars[name] = execute(node.children[1]);
+                else if (symtab.lookupLocalVar(name) != null) {
+                    symtab.localVars[name] = execute(node.children[1]);
                     return null;
                 }
                 throw 'Error: Variable ${name} is not defined.';
@@ -129,7 +99,7 @@ class Interpreter {
             case NodeType.FunctionCall:
                 String name = node.children[0].data;
 
-                Node target = lookupFunc(name);
+                Node target = symtab.lookupFunc(name);
                 if (target != null) {
                     
                     // Set up the arguments:
@@ -139,21 +109,21 @@ class Interpreter {
 
                         // If the arg is a variable, look up that variable 
                         if (arg.type == NodeType.Ident) {
-                            localVars[argName] = lookupVar(arg.data);
+                            symtab.localVars[argName] = symtab.lookupVar(arg.data);
                         } 
                         // Otherwise just use the result of the expression
                         else {
-                            localVars[argName] = execute(arg);
+                            symtab.localVars[argName] = execute(arg);
                         }
                     }
 
                     // Execute the function
-                    execute(target.children.last);
+                    String result = execute(target.children.last);
 
                     // Clear the function scope:
-                    localVars = new Map<String, String>();
+                    symtab.localVars = new Map<String, String>();
 
-                    return null; 
+                    return result;
                 }
                 throw 'Function ${name} is not defined.';
 
@@ -162,11 +132,11 @@ class Interpreter {
                 String right = execute(node.children[1]);
                 if (node.children[0].type == NodeType.Ident) {
                     //@@CLEANUP
-                    left = lookupVar(left);
+                    left = symtab.lookupVar(left);
                 }
                 if (node.children[1].type == NodeType.Ident) {
                     //@@CLEANUP
-                    right = lookupVar(right);
+                    right = symtab.lookupVar(right);
                 }
                 return left + right;
 
@@ -174,7 +144,7 @@ class Interpreter {
                 return node.data;
 
             case NodeType.Ident:
-                if (lookupVar(node.data) != null || lookupFunc(node.data) != null) {
+                if (symtab.lookupVar(node.data) != null || symtab.lookupFunc(node.data) != null) {
                     return node.data;
                 }
                 throw 'Error: Variable ${node.data} is not defined.';
@@ -186,20 +156,22 @@ class Interpreter {
     String builtin(String name) {
         switch (name) {
             case 'print':
-                print(lookupLocalVar('@0'));
+                print(symtab.lookupLocalVar('@0'));
                 return null;
             case 'shell':
-                Builtin.shell(lookupLocalVar('@0'));
+                Builtin.shell(symtab.lookupLocalVar('@0'));
                 return null;
             case 'copy':
-                Builtin.copy(lookupLocalVar('@0'), lookupLocalVar('@1'));
+                Builtin.copy(symtab.lookupLocalVar('@0'), symtab.lookupLocalVar('@1'));
                 return null;
             case 'delete':
-                Builtin.delete(lookupLocalVar('@0'));
+                Builtin.delete(symtab.lookupLocalVar('@0'));
                 return null;
             case 'preprocess':
-                Builtin.preprocess(lookupLocalVar('@0'), lookupLocalVar('@1'));
+                Builtin.preprocess(symtab.lookupLocalVar('@0'), symtab.lookupLocalVar('@1'));
                 return null;
+            case 'import':
+                return Builtin.import(symtab.lookupLocalVar('@0'));
         }
         throw 'Error: Built-in function ${name} not found.';
     }
