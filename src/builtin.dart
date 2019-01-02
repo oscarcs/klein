@@ -4,7 +4,10 @@ import 'preprocessor.dart';
 class Builtin {
 
     static void shell(String cmd) {
-
+        Process.run(cmd, [], runInShell: true).then((result) {
+            stdout.write(result.stdout);
+            stderr.write(result.stderr);
+        });
     }
 
     /// Copy a file or directory to another directory.

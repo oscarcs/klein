@@ -1,0 +1,9 @@
+
+fn run() {
+    shell('ls')
+    shell('dart klein.dart ./test/preprocess_test.kln run')
+}
+
+fn clean() {
+    shell('dart klein.dart ./test/preprocess_test.kln clean')
+}
