@@ -11,7 +11,9 @@ class Preprocessor {
 
     String preprocess() {
         String output = fileContents;
-        for (Match match in '@@'.allMatches(output)) {
+        
+        Match match = firstMatchOrNull('@@', output);
+        while (match != null) {
             int loc = match.start;
             while (output[loc] != '\n' && output[loc] != '\r') {
                 loc++;
@@ -25,7 +27,19 @@ class Preprocessor {
                 result = '';
             }
             output = output.replaceRange(match.start, loc, result);
+
+            // Recalculate the next match
+            match = firstMatchOrNull('@@', output);
         }
         return output;
+    }
+
+    /// Get the next match; otherwise return null.
+    Match firstMatchOrNull(String pattern, String content) {
+        Iterable<Match> matches = pattern.allMatches(content);
+        if (matches.length > 0) {
+            return matches.first;
+        }
+        return null;
     }
 }

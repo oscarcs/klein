@@ -1,0 +1,10 @@
+#  Klein file to build Klein.
+
+let out = '.\bin'
+let snapshotName = 'klein.snapshot'
+
+fn build() {
+    shell('mkdir ' + out)
+    shell('dart --snapshot=' + out + '\' + snapshotName + ' klein.dart')
+    copy(out + '/' + snapshotName, 'C:/bin/klein')
+}
