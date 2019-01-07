@@ -12,13 +12,13 @@ To facilitate this pattern, a number of tools have arisen that the developer of 
 - Virtual machines, to run the above tools (which are invariably written in Javascript), such as Node.js.
 - Various libraries to run 'tasks', including Grunt, Gulp, Bower, NPM,  
 
-As you might expect, there's been a bit of a pushback against the sheer quantity of tooling involved in building simple web pages. **Web tooling today mostly doesn't provide a good experience.** It's too complex to keep a model of what's happening in your head, which means when things go wrong you have no simple way to fix it.
+As you might expect, there's been a bit of a pushback against the sheer quantity of tooling involved in building simple web pages. **Web tooling today mostly doesn't provide a good experience.** It's too complex to keep a model of what's happening in your head, which means when things go wrong you have no simple way to fix it. This is also the problem with declarative build languages like XML: they don't generally contain inline information about the 'build model'.
 
 By making a few simplifying assumptions, we can obviate the need for most of these tools.
 
-- **No package management.** There are lots of good reasons for not using package management, including security, dependency hell, and build reproducibility. If you work for a bank, do you really want your users to be running all sorts of untrusted, unaudited JS modules on their systems every time they go to check their balance?
+- **No package management.** There are lots of good reasons for not using package management, including security, dependency hell, and build reproducibility. If you work for a bank, do you really want your users to be running all sorts of untrusted, unaudited JS modules on their systems every time they go to check their balance? The dependency surface should be as small as possible. Fortunately, modern web browsers are pretty batteries-included about their APIs and you can get by very well with only 4 or 5 dependencies, which is manually trackable (you should be developing against fixed versions of dependent software anyway).
 
-- **No Node.js.** Who would write a [compiler in Javascript](https://github.com/oscarcs/bplus) anyway? 
+- **No Node.js.** Who would write a [compiler in Javascript](https://github.com/oscarcs/bplus) anyway? To be honest, this limitation is slightly arbitrary, though it should be pointed out that distributing the Dart VM is substantially easier than distributing Node.
 
 - **Specific needs.** Web developers have different needs for their projects. Mostly, those needs are actually pretty minimal, because **the hard part of web development is capturing and fulfilling specific business and usability requirements** (i.e. engineering).
 
@@ -26,7 +26,7 @@ By making a few simplifying assumptions, we can obviate the need for most of the
 
 - There are a number of good existing standalone tools that provide 95% of the functionality needed to build modern single page applications.
 - These tools are not linked together and easy to use.
-- We want to solve these web development problems, in roughly this order: HTML compilation / templating / preprocessing; CSS preprocessing; 
+- We want to solve these web development problems, in roughly this order: File and shell operations; HTML templating/preprocessing; CSS preprocessing; 
 
 ## What does the tool do?
 
@@ -39,7 +39,8 @@ By making a few simplifying assumptions, we can obviate the need for most of the
 
 Stretch goals:
 
-- 'Watch' behaviour (so the software can just run continuously). 
+- 'Watch' behaviour (so the software can just run continuously). With Dart and the native file watching APIs this shouldn't be too hard.
+- A super-easy install process. Ideally the required tools (e.g. Dart Sass) would be automatically retrieved and updated by Klein.
 
 ### Initialization
 
@@ -66,6 +67,7 @@ Creates a default set of HTML, CSS, JS, and config files.
 ```
 
 ### Build language
+Anything in the toplevel is automatically executed. Functions must be called by the user.
 ```ini
 # This is a comment.
 
