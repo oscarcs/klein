@@ -17,6 +17,7 @@ enum TokenType {
 class Token {
     TokenType type;
     String reproduction;
+    int lineNumber;
 
     Token(TokenType type, String reproduction) {
         this.type = type;
@@ -34,109 +35,151 @@ class Token {
 class Tokenizer {
 
     String code = null;
+    int pos = 0;
+    int line = 1;
+    List<Token> tokens = [];
 
     Tokenizer(String code) {
         this.code = code;
     }
 
     bool isIdentChar(String s) {
-        RegExp exp = new RegExp("[A-Za-z]");
+        RegExp exp = new RegExp('[A-Za-z]');
         return (exp.hasMatch(s));
     }
 
+    String get char {
+        if (pos < code.length) {
+            return code[pos];
+        }
+    }
+
+    String get next {
+        if (pos + 1 < code.length) {
+            return code[pos + 1];
+        }
+    }
+
+    Token get lastToken {
+        if (tokens.length > 0) {
+            return tokens.last;
+        }
+        return new Token(TokenType.End, '');
+    }
+
+    void advance() {
+        pos++;
+    }
+
+    void addToken(Token t) {
+        t.lineNumber = line;
+        tokens.add(t);
+    }
+
     List<Token> tokenize () { 
-        List<Token> tokens = [];
-        int pos = 0;
         while (pos < code.length) {
             // Skip whitespace:
-            while (code[pos] == ' ' || code[pos] == '\t') {
-                pos++;
+            while (char == ' ' || char == '\t') {
+                advance();
             }
 
-            if (code[pos] == '#') {
+            if (char == '#') {
                 // Ignore comments.
-                while (code[pos] != '\n') {
-                    pos++;
+                while (char != '\n') {
+                    advance();
                 }
-                pos++;
+                advance();
             }
-            else if (code[pos] == '\n' || code[pos] == '\r') {
-                // Add a newline token into the stream:
-                tokens.add(new Token(TokenType.Newline, "\n"));
-                pos++;
-                while (pos < code.length && (code[pos] == '\n' || code[pos] == '\r')) {
-                    pos++;
+            // DOS / Windows line endings
+            else if (char == '\r') {
+                if (next == '\n') {
+                    advance();
                 }
+
+                if (lastToken.type != TokenType.Newline) {
+                    addToken(new Token(TokenType.Newline, '\n'));
+                }
+                line++;
+                advance();
             }
-            else if (code[pos] == '{') {
-                tokens.add(new Token(TokenType.LBrace, '{'));
-                pos++;
+            // UNIX line endings
+            else if (char == '\n') {
+                if (lastToken.type != TokenType.Newline) {
+                    addToken(new Token(TokenType.Newline, char));
+                }
+                line++;
+                advance();
             }
-            else if (code[pos] == '}') {
-                tokens.add(new Token(TokenType.RBrace, '}'));
-                pos++;
+            else if (char == '{') {
+                addToken(new Token(TokenType.LBrace, char));
+                advance();
             }
-            else if (code[pos] == '(') {
-                tokens.add(new Token(TokenType.LParen, '('));
-                pos++;
+            else if (char == '}') {
+                addToken(new Token(TokenType.RBrace, char));
+                advance();
             }
-            else if (code[pos] == ')') {
-                tokens.add(new Token(TokenType.RParen, ')'));
-                pos++;
+            else if (char == '(') {
+                addToken(new Token(TokenType.LParen, char));
+                advance();
             }
-            else if (code[pos] == '=') {
-                tokens.add(new Token(TokenType.Equals, '='));
-                pos++;
+            else if (char == ')') {
+                addToken(new Token(TokenType.RParen, char));
+                advance();
             }
-            else if (code[pos] == '+') {
-                tokens.add(new Token(TokenType.Concat, '+'));
-                pos++;
+            else if (char == '=') {
+                addToken(new Token(TokenType.Equals, char));
+                advance();
             }
-            else if (code[pos] == ',') {
-                tokens.add(new Token(TokenType.Separator, ','));
-                pos++;
+            else if (char == '+') {
+                addToken(new Token(TokenType.Concat, char));
+                advance();
             }
-            else if (isIdentChar(code[pos])) {
+            else if (char == ',') {
+                addToken(new Token(TokenType.Separator, char));
+                advance();
+            }
+            else if (isIdentChar(char)) {
                 int startPos = pos;
-                pos++;
-                while (pos < code.length && isIdentChar(code[pos])) {
-                    pos++;
+                advance();
+                while (pos < code.length && isIdentChar(char)) {
+                    advance();
                 }
                 
                 // Tokenize 
                 String repr = code.substring(startPos, pos);
                 if (repr == 'let') {
-                    tokens.add(new Token(TokenType.Def, repr));
+                    addToken(new Token(TokenType.Def, repr));
                 }
                 else if (repr == 'fn') {
-                    tokens.add(new Token(TokenType.FunctionDef, repr));
+                    addToken(new Token(TokenType.FunctionDef, repr));
                 }
                 else {
-                    tokens.add(new Token(TokenType.Ident, repr));
+                    addToken(new Token(TokenType.Ident, repr));
                 }
             }
-            else if (code[pos] == '\'') {
+            else if (char == '\'') {
                 int startPos = pos;
-                pos++;
-                while (pos < code.length && code[pos] != '\'') {
-                    pos++;
+                advance();
+                while (pos < code.length && char != '\'') {
+                    advance();
                 }
-                pos++; // increment past the end of the string 
+                advance(); // increment past the end of the string 
                 // Exclude the quote marks from the tokenized data:
                 String repr = code.substring(startPos + 1, pos - 1);
-                tokens.add(new Token(TokenType.String, repr));
+                addToken(new Token(TokenType.String, repr));
             }
             else {
-                throw "Unexpected character: ${code[pos]}";
+                throw "Unexpected character: ${char}";
             }
         }
 
         //@@HACK: for statement parsing
         if (tokens.last.type != TokenType.Newline) {
-            tokens.add(new Token(TokenType.Newline, ''));
+            addToken(new Token(TokenType.Newline, ''));
         }
 
-        tokens.add(new Token(TokenType.End, ''));
+        addToken(new Token(TokenType.End, ''));
+        tokens.forEach((t) => print('${t.type}: ${t.lineNumber}'));
         return tokens;
     }
 }
